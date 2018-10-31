@@ -2,90 +2,73 @@
 #include <thread>
 #include <fstream>
 #include <vector>
-#include <mutex>
 #include <algorithm>
 
 using namespace std;
 
-//void fileToMemoryTransfer(char *fileName, char **data, size_t & numOfBytes) {
-//	streampos begin, end;
-//	ifstream inFile(fileName, ios::in | ios::binary | ios::ate);
-//	if (!inFile)
-//	{
-//		cerr << "Cannot open " << fileName << endl;
-//		inFile.close();
-//		exit(1);
-//	}
-//	size_t size = inFile.tellg();
-//	char * buffer = new  char[size];
-//	inFile.seekg(0, ios::beg);
-//	inFile.read(buffer, size);
-//	inFile.close();
-//	*data = buffer;
-//	numOfBytes = size;
-//}
-
-int main() {
-
-
-	ifstream inFile("test.txt", ios::in | ios::binary | ios::ate);
-
-	if (!inFile) {
-		cerr << "Cannot open " << endl;
+void fileToMemoryTransfer(char *fileName, char **data, size_t & numOfBytes) {
+	streampos begin, end;
+	ifstream inFile(fileName, ios::in | ios::binary | ios::ate);
+	if (!inFile)
+	{
+		cerr << "Cannot open " << fileName << endl;
 		inFile.close();
 		exit(1);
 	}
-
-	size_t length = inFile.tellg();
-	char * buffer = new char[length];
+	size_t size = inFile.tellg();
+	char * buffer = new  char[size];
 	inFile.seekg(0, ios::beg);
-	inFile.read(buffer, length);
+	inFile.read(buffer, size);
 	inFile.close();
+	*data = buffer;
+	numOfBytes = size;
+}
 
+
+int main(int argc, char** argv) {
+
+	char *test;
+	size_t size;
+	fileToMemoryTransfer(argv[1], &test, size);
+	
 	vector<size_t> global(256, 0);
 	vector<thread> workers;
 	int numThreads = thread::hardware_concurrency();
 
-	int section = length / numThreads;
-	int leftOver = length % numThreads;
-	int start = 0;
-	int end = section;
-	mutex m;
+	int rows = size / numThreads;
+	int extra = size % numThreads;
+	int start = 0; // each thread does [start..end)
+	int end = rows;
+	
 
 	for (int t = 1; t <= numThreads; t++) {
-		if (t == numThreads) {
-			end += leftOver;
+		if (t == numThreads) { // last thread does extra rows:
+			end += extra;
 		}
 
-		workers.push_back(thread([start, end, &m, &buffer, &global]() {
+		workers.push_back(thread([start, end, &test, &global]() {
 			for (int i = start; i < end; i++) {
-				for (int j = 0; j < global.size(); j++) {
-					if (buffer[i] == j) {
-						global[j]++;
+				for (size_t j = 0; j < global.size(); j++) {
+					if (test[i] == j) {
+					global[j]++;
 					}
 				}
 			}
 		})
 		);
 		start = end;
-		end = start + section;
+		end = start + rows;
 	}
 
 	for_each(workers.begin(), workers.end(), [](thread &t) {
 		t.join();
-	}
-	);
+	});
 
 	cout << "Run with one global histogram" << endl;
 
-	for (int i = 0; i < global.size(); i++) {
+	for (size_t i = 0; i < global.size(); i++) {
 		cout << i << ": " << global[i] << endl;
 	}
 
-
-	//---------------------------------------------------------------------------
-	cout << "Run with local histograms" << endl;
-	start = 0;
-	end = section;
-
+	
 }
